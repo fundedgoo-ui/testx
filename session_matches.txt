@@ -1,0 +1,18 @@
+85:  const [sessionBoxes, setSessionBoxes] = useState<SessionBox[]>([
+990:    // We want to reset VWAP at 17:00 New York time, which is the start of the Forex daily session.
+1011:      // If hour is >= 17, it belongs to the *next* trading session (day).
+1013:      // A simple string identifier for the session:
+1014:      let sessionDay = parseInt(day, 10);
+1015:      let sessionMonth = parseInt(month, 10);
+1016:      let sessionYear = parseInt(year, 10);
+1020:        // but it's totally fine since it's just a unique string identifier for the session!
+1021:        sessionDay += 1;
+1024:      const sessionIdStr = `${sessionYear}-${sessionMonth}-${sessionDay}`;
+1026:      if (sessionIdStr !== currentSession) {
+1027:          currentSession = sessionIdStr;
+2191:                          {sessionBoxes.map((session) => (
+2193:                                key={session.id}
+2195:                                  setVisibleSessions(prev => ({ ...prev, [session.id]: !prev[session.id] }));
+2197:                                className={`px-4 py-2 text-xs font-bold font-mono text-left transition-colors flex items-center justify-between ${visibleSessions[session.id] ? "text-azure" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+2199:                               {session.name}
+2200:                               {visibleSessions[session.id] && <span className="text-azure block w-2 h-2 rounded-full bg-azure shadow-[0_0_8px_rgba(59,130,246,0.8)]" />}

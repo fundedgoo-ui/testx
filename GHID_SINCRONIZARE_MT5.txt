@@ -1,0 +1,61 @@
+========================================================================
+       GHID DE CONFIGURARE: SINCRONIZARE AUTOMATĂ WEB -> MT5 REAL
+========================================================================
+
+Acest sistem permite executarea automată a tranzacțiilor puse pe platforma web
+direct pe conturi reale de MetaTrader 5 (MT5) prin intermediul unui VPS.
+
+Sistemul este configurat să permită REPARTIZAREA DIFERITĂ a conturilor:
+- Poti selecta exact care conturi "Funded" să se sincronizeze.
+- Fiecare cont poate avea propriul său VPS sau propria sa instanță de MT5.
+
+------------------------------------------------------------------------
+PASUL 1: Pregătirea VPS-ului (Windows)
+------------------------------------------------------------------------
+1. Instalează MetaTrader 5 pe VPS-ul tău.
+2. Autentifică-te în terminalul MT5 cu contul real pe care vrei să se pună trade-urile.
+3. IMPORTANT: În MT5, mergi la Tools -> Options -> Expert Advisors și:
+   - Bifează "Allow Algo Trading".
+   - Bifează "Allow WebRequest for listed URL" (opțional, dar recomandat).
+4. Lasă terminalul MT5 DESCHIS în permanență.
+
+------------------------------------------------------------------------
+PASUL 2: Instalarea Scriptului Bridge (Python)
+------------------------------------------------------------------------
+1. Instalează Python (minim versiunea 3.8) de pe python.org.
+2. Deschide CMD (Terminal) pe VPS și instalează librăriile necesare:
+   pip install MetaTrader5 Flask
+3. Descarcă fișierul `mt5_bridge.py` din panoul de Admin al platformei tale
+   (Tab-ul "MT5 Bridge").
+4. Rulează scriptul pe VPS:
+   python mt5_bridge.py
+5. Notează IP-ul VPS-ului și Portul (implicit 5000) și TOKEN-ul afișat în terminal.
+
+------------------------------------------------------------------------
+PASUL 3: Activarea Sincronizării din Panoul de Admin
+------------------------------------------------------------------------
+Acum poți alege ce utilizatori și ce conturi să fie copiate pe MT5:
+
+1. Intră în Admin Panel -> Tab-ul "Users".
+2. Caută utilizatorul dorit și apasă pe "View Details" (butonul cu ochi/lupă).
+3. În fereastra care se deschide, vei vedea lista de conturi (Trading Accounts).
+4. Fiecare cont are acum o secțiune "MT5 Bridge Copy-Trading":
+   - Bifează comutatorul (Switch-ul) pentru a activa sincronizarea.
+   - Introdu Bridge URL: ex. http://IP_VPS_TAU:5000
+   - Introdu Token: Token-ul de securitate setat în script.
+5. De acum, orice tranzacție pusă de acel utilizator pe acel cont specific
+   va fi trimisă instant către VPS-ul tău și executată pe MT5.
+
+------------------------------------------------------------------------
+CUM FUNCȚIONEAZĂ (Flux Tehnic)
+------------------------------------------------------------------------
+1. Clientul apasă "Buy/Sell" în Web Terminal (pentru un cont Funded activat).
+2. Serverul primește cererea și verifică în baza de date (Firebase) dacă 
+   acel ID de cont are configurat "mt5Sync: enabled".
+3. Dacă da, Serverul face o cerere securizată (POST) către URL-ul VPS-ului tău.
+4. Scriptul `mt5_bridge.py` primește comanda, verifică token-ul și folosește
+   funcția `mt5.order_send()` pentru a pune trade-ul în terminalul deschis.
+
+AVANTAJ: Poți pune Userul "A" pe VPS-ul 1 și Userul "B" pe VPS-ul 2, sau
+îi poți lăsa pe toți pe același VPS (folosind același URL) dacă rulezi o
+singură instanță de MT5 care gestionează tot.

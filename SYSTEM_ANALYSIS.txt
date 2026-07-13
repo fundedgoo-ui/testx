@@ -1,0 +1,37 @@
+# Analiză Aplicație
+
+Această aplicație este o aplicație full-stack (React frontend, Express backend) care utilizează Firebase Firestore ca bază de date și Stripe pentru procesarea plăților.
+
+## Baza de Date (Firestore)
+- **Logica**: Este o bază de date NoSQL. Structura datelor este definită în `firebase-blueprint.json`. Aceasta este o reprezentare intermediară și nu este sursa de adevăr, dar este folosită pentru a menține consistența.
+- **Securitate**: Regulile de acces sunt definite în `firestore.rules`. Acestea trebuie să fie întotdeauna sincronizate cu structura din `firebase-blueprint.json` pentru a asigura securitatea datelor.
+
+## API Keys și Securitate
+- **Configurație Firebase**: Detaliile de configurare (apiKey, projectId, etc.) sunt în `firebase-applet-config.json`. Acestea sunt necesare pe client pentru autentificare și interacțiunea cu Firestore.
+- **Stripe**:
+    - **Gestionare Cheie**: Aplicația încearcă să obțină cheia secretă Stripe (decriptată) din colecția `apis/api-stripe` din Firestore.
+    - **Fallback**: Dacă nu reușește, folosește variabila de mediu `STRIPE_SECRET_KEY` de pe server (`server.ts`).
+
+## Funcționalitate și Salvare
+- **Frontend**: Scris în React, utilizează hook-uri (ex: `AppContext.tsx`) pentru a comunica cu Firebase. Salvarea datelor se face prin apeluri directe către Firebase SDK (de ex: `setDoc`, `updateDoc`).
+- **Backend (Server)**:
+    - `server.ts` este punctul de intrare.
+    - Gestionează rutele API pentru checkout (Stripe) și log-uri de audit/tranzacții.
+    - Rulează pe portul 3000.
+
+## Mutare Aplicație (Migrare)
+Pentru a muta aplicația pe un nou host/găzduire, urmează acești pași:
+
+1. **Dependențe**: Instalează dependențele (`npm install`) și asigură-te că `node_modules` este corect populat.
+2. **Mediu (Environment)**:
+    - Configurează variabilele de mediu necesare în `.env` (folosește `.env.example` ca referință).
+    - Asigură-te că `STRIPE_SECRET_KEY` este setată dacă nu folosești Firebase pentru stocarea cheii.
+3. **Firebase**:
+    - Configurează un nou proiect Firebase dacă este necesar sau actualizează `firebase-applet-config.json` cu noile detalii.
+    - Trebuie să activezi Firestore Enterprise Edition și Firebase Auth (Google Provider).
+    - **IMPORTANT**: Trebuie să deployezi regulile de securitate (`firestore.rules`) în consolă sau folosind CLI-ul Firebase.
+4. **Server**:
+    - Aplicația trebuie pornită folosind `npm start` (care execută `node server.ts` sau echivalent).
+    - Asigură-te că host-ul acceptă portul 3000.
+5. **Build**:
+    - Rulează `npm run build` pentru a genera fișierele de producție dacă este necesar (pentru SPA/Frontend static).

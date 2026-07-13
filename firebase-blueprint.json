@@ -1,0 +1,376 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "User Account",
+      "description": "User profile and account status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "moderator", "trader"] },
+        "balance": { "type": "number" },
+        "equity": { "type": "number" },
+        "status": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "verificationStatus": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "isHostes": { "type": "boolean" },
+        "isBot": { "type": "boolean" },
+        "botProfile": { "type": "string" },
+        "avatar": { "type": "string" },
+        "country": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "createdAt"]
+    },
+    "BotProfile": {
+      "title": "Bot Profile",
+      "description": "Configuration for representative bot behavior",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "minTradeInterval": { "type": "number", "description": "Minutes between trades" },
+        "maxTradeInterval": { "type": "number" },
+        "minDuration": { "type": "number", "description": "Minutes to keep trade open" },
+        "maxDuration": { "type": "number" },
+        "buyProbability": { "type": "number" },
+        "preferredInstruments": { "type": "array", "items": { "type": "string" } },
+        "lotSizeRange": { "type": "array", "items": { "type": "number" } },
+        "riskLevel": { "type": "string", "enum": ["conservative", "balanced", "aggressive"] }
+      }
+    },
+    "Competition": {
+      "title": "Competition",
+      "description": "Prop trading competition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "startDate": { "type": "number" },
+        "endDate": { "type": "number" },
+        "botCount": { "type": "number" },
+        "botsEnabled": { "type": "boolean" },
+        "status": { "type": "string" }
+      }
+    },
+    "TradingAccount": {
+      "title": "Trading Account",
+      "description": "User trading platform account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "broker": { "type": "string" },
+        "status": { "type": "string" },
+        "balance": { "type": "number" },
+        "initialBalance": { "type": "number" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "accountNumber", "status", "balance", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "message", "read", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "userId", "amount", "type", "status", "createdAt"]
+    },
+    "ShopPackage": {
+      "title": "Shop Package",
+      "description": "Prop firm challenge package",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "allocation": { "type": "number" },
+        "profitTarget": { "type": "number" },
+        "dailyDrawdown": { "type": "number" },
+        "totalDrawdown": { "type": "number" }
+      },
+      "required": ["id", "name", "price", "allocation", "profitTarget", "dailyDrawdown", "totalDrawdown"]
+    },
+    "VerificationRequest": {
+      "title": "Verification Request",
+      "description": "KYC verification request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "status": { "type": "string" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "status", "submittedAt"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "System audit trail tracking admins and moderators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "type": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "action", "type", "createdAt"]
+    },
+    "ExternalAPI": {
+      "title": "External API",
+      "description": "Configuration for external services",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "status"]
+    },
+    "SymbolConfig": {
+      "title": "Symbol Config",
+      "description": "Trading asset configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "pipSize": { "type": "number" },
+        "tickValue": { "type": "number" },
+        "spread": { "type": "number" },
+        "leverage": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "symbol", "name", "isActive"]
+    },
+    "Promotion": {
+      "title": "Promotion",
+      "description": "Marketing discount or offer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "discountCode": { "type": "string" },
+        "discountRate": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "showToAll": { "type": "boolean" },
+        "isSecret": { "type": "boolean" },
+        "targetUserIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "number" },
+        "validUntil": { "type": "string" },
+        "usageLimit": { "type": "number" },
+        "usageCount": { "type": "number" }
+      },
+      "required": ["id", "title", "discountCode", "discountRate", "isActive"]
+    },
+    "BotPosition": {
+      "title": "Bot Position",
+      "description": "Trading position held by a bot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "lots": { "type": "string" },
+        "openPrice": { "type": "number" },
+        "type": { "type": "string", "enum": ["buy", "sell"] },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "openTime": { "type": "number" },
+        "closeTime": { "type": "number" },
+        "closePrice": { "type": "number" },
+        "pnl": { "type": "number" },
+        "closeAt": { "type": "number" },
+        "competitionId": { "type": "string" }
+      },
+      "required": ["userId", "symbol", "lots", "openPrice", "type", "status", "openTime", "competitionId"]
+    },
+    "Rule": {
+      "title": "Rule",
+      "description": "Platform trading rule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "title", "description"]
+    },
+    "LeaderboardEntry": {
+      "title": "Leaderboard Entry",
+      "description": "Entry in the trading leaderboard",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userName": { "type": "string" },
+        "profit": { "type": "number" },
+        "equity": { "type": "number" },
+        "rank": { "type": "number" },
+        "country": { "type": "string" }
+      },
+      "required": ["id", "userName", "profit"]
+    },
+    "EconomicEvent": {
+      "title": "Economic Event",
+      "description": "Calendar event for economic data released",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "currency": { "type": "string" },
+        "impact": { "type": "string", "enum": ["low", "medium", "high"] },
+        "time": { "type": "number" },
+        "actual": { "type": "string" },
+        "forecast": { "type": "string" },
+        "previous": { "type": "string" }
+      },
+      "required": ["id", "title", "currency", "impact", "time"]
+    },
+    "Educator": {
+      "title": "Educator",
+      "description": "Verified trading educator profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "bio": { "type": "string" },
+        "specialization": { "type": "string" },
+        "avatar": { "type": "string" },
+        "socialLinks": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "rating": { "type": "number" },
+        "hasMasterMentorBadge": { "type": "boolean" }
+      },
+      "required": ["id", "name", "status"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Community post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "correctVotes": { "type": "array", "items": { "type": "string" } },
+        "incorrectVotes": { "type": "array", "items": { "type": "string" } },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserAccount",
+      "description": "User profiles"
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/users/{userId}/tradingAccounts/{acctId}": {
+      "schema": "TradingAccount",
+      "description": "User trading accounts"
+    },
+    "/transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Global transactions"
+    },
+    "/packages/{pkgId}": {
+      "schema": "ShopPackage",
+      "description": "Available packages"
+    },
+    "/verificationRequests/{reqId}": {
+      "schema": "VerificationRequest",
+      "description": "KYC requests"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security and system logs"
+    },
+    "/apis/{apiId}": {
+      "schema": "ExternalAPI",
+      "description": "Service credentials"
+    },
+    "/symbolConfigs/{symbolId}": {
+      "schema": "SymbolConfig",
+      "description": "Market asset configurations"
+    },
+    "/promotions/{promoId}": {
+      "schema": "Promotion",
+      "description": "Global marketing offers"
+    },
+    "/bot_positions/{posId}": {
+      "schema": "BotPosition",
+      "description": "Bot trading history"
+    },
+    "/botProfiles/{profileId}": {
+      "schema": "BotProfile",
+      "description": "Configured bot behaviors"
+    },
+    "/rules/{ruleId}": {
+      "schema": "Rule",
+      "description": "Platform policies"
+    },
+    "/leaderboard/{entryId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Trader standings"
+    },
+    "/economicEvents/{eventId}": {
+      "schema": "EconomicEvent",
+      "description": "Calendar events"
+    },
+    "/educators/{educatorId}": {
+      "schema": "Educator",
+      "description": "Educator profiles"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Feed content"
+    },
+    "/system/{docId}": {
+      "schema": "object",
+      "description": "Internal system state"
+    },
+    "/admins/{adminId}": {
+      "schema": "object",
+      "description": "Privileged users list"
+    }
+  }
+}

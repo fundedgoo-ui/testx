@@ -1,0 +1,6 @@
+{
+  "name": "PROP",
+  "description": "A futuristic 3D trading platform and prop firm management dashboard featuring real-time analytics, 45% consistency rule enforcement, and fee refund protocols.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,204 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- 0. Global Safety Net ---
+    match /{document=**} { allow read, write: if false; }
+
+    // --- 1. Primitives & Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Admin check: Hardcoded emails from server.ts plus database lookup
+    function isAdmin() { 
+      return isVerified() && (
+        request.auth.token.email == 'admin@prop.com' ||
+        request.auth.token.email == 'websiteanglia@gmail.com' ||
+        request.auth.token.email == 'florinelvictorlupascu@gmail.com' ||
+        request.auth.token.email == 'fundedgoo@gmail.com' ||
+        request.auth.uid == 'XyFVhiDlrNVP5WIpaA56mGq5wUI3' ||
+        request.auth.uid == '92Lluf6ztBasw1COuRRXHteVJfr1' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    
+    // Staff check: Admins or Moderators
+    function isStaff() {
+      return isAdmin() || (isVerified() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'moderator']);
+    }
+
+    function isOwner(userId) { 
+      return isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+    }
+
+    // --- 2. Validation Blueprints ---
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role', 'createdAt']) &&
+             data.keys().size() <= 15 &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['trader', 'admin', 'moderator'] &&
+             data.createdAt is number;
+    }
+
+    function isValidTradingAccount(data) {
+      return data.keys().hasAll(['id', 'userId', 'accountNumber', 'status', 'balance', 'createdAt']) &&
+             data.keys().size() <= 12 &&
+             data.id is string && data.userId is string &&
+             data.accountNumber is string &&
+             data.status in ['active', 'pending', 'suspended', 'failed'] &&
+             data.balance is number &&
+             data.createdAt is number;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'message', 'read', 'createdAt']) &&
+             data.keys().size() <= 7 &&
+             data.userId is string && data.message is string && data.message.size() <= 1000 &&
+             data.read is bool && data.createdAt is number;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['id', 'userId', 'amount', 'type', 'status', 'createdAt']) &&
+             data.keys().size() <= 10 &&
+             data.userId is string && data.amount is number && 
+             data.type in ['purchase', 'payout', 'deposit', 'withdrawal'] &&
+             data.status in ['pending', 'completed', 'rejected'] &&
+             data.createdAt is number;
+    }
+
+    function isValidPromotion(data) {
+      return data.keys().hasAll(['id', 'title', 'discountCode', 'discountRate', 'isActive']) &&
+             data.title is string && data.discountCode is string &&
+             data.discountRate is number && data.isActive is bool;
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['id', 'userId', 'content', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.createdAt == request.time;
+    }
+
+    // --- 3. Collection Rules ---
+
+    match /users/{userId} {
+      allow list: if isStaff();
+      allow get: if isOwner(userId) || isStaff() || isSignedIn(); 
+      allow create: if isVerified() && userId == request.auth.uid && isValidUser(incoming());
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        isValidUser(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'country', 'phone'])
+      );
+
+      match /notifications/{notifId} {
+        allow list, get: if isOwner(userId) || isStaff();
+        allow create: if isStaff();
+        allow update: if (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read'])) || isStaff();
+        allow delete: if isOwner(userId) || isStaff();
+      }
+
+      match /tradingAccounts/{acctId} {
+        allow list, get: if isOwner(userId) || isStaff();
+        allow create: if isStaff(); // Usually created via Admin or Server
+        allow update: if isStaff();
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /transactions/{txId} {
+      allow list: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow get: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerified() && incoming().userId == request.auth.uid && isValidTransaction(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    match /packages/{pkgId} {
+      allow list, get: if true;
+      allow write: if isAdmin();
+    }
+
+    match /symbolConfigs/{symbolId} {
+      allow list, get: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /promotions/{promoId} {
+      allow list: if isStaff() || (isSignedIn() && (resource.data.showToAll == true || resource.data.targetUserIds.hasAny([request.auth.uid])));
+      allow get: if isSignedIn();
+      allow create: if isAdmin() && isValidPromotion(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /botProfiles/{profileId} {
+      allow list, get: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bot_positions/{posId} {
+      allow list, get: if true; // Public for leaderboard
+      allow write: if isAdmin(); // Bots managed via Server (Admin SDK)
+    }
+
+    match /rules/{ruleId} {
+      allow list, get: if true;
+      allow write: if isAdmin();
+    }
+
+    match /verificationRequests/{reqId} {
+      allow list: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow get: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerified() && incoming().userId == request.auth.uid;
+      allow update, delete: if isStaff();
+    }
+
+    match /auditLogs/{logId} {
+      allow list, get: if isStaff();
+      allow create: if isStaff(); 
+      allow update, delete: if false; 
+    }
+
+    match /apis/{apiId} {
+      allow list, get, write: if isAdmin();
+    }
+
+    match /leaderboard/{entryId} {
+      allow list, get: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /economicEvents/{eventId} {
+      allow list, get: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /educators/{educatorId} {
+      allow list, get: if isSignedIn();
+      allow create: if isVerified(); // Anyone can apply to be an educator
+      allow update, delete: if isStaff();
+    }
+
+    match /posts/{postId} {
+      allow list, get: if isSignedIn();
+      allow create: if isVerified() && isValidPost(incoming());
+      allow update: if (isOwner(resource.data.userId) && incoming().diff(existing()).affectedKeys().hasOnly(['content'])) || isStaff();
+      allow delete: if isOwner(resource.data.userId) || isStaff();
+    }
+
+    match /system/{docId} {
+      allow get: if isSignedIn();
+      allow write: if isStaff();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; 
+    }
+  }
+}

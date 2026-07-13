@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- 1. Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['admin@prop.com', 'websiteanglia@gmail.com', 'florinelvictorlupascu@gmail.com', 'fundedgoo@gmail.com', 'cloudcomun@gmail.com'] ||
+        request.auth.uid in ['zqPmFd1eg0cMfW5eFgofbPrtWru2', 'XyFVhiDlrNVP5WIpaA56mGq5wUI3', '92Lluf6ztBasw1COuRRXHteVJfr1']
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- 2. Collection Rules ---
+
+    // Public Collections
+    match /packages/{pkgId} { allow read: if true; }
+    match /rules/{ruleId} { allow read: if true; }
+    match /botProfiles/{profileId} { allow read: if true; }
+    match /bot_positions/{posId} { allow read: if true; }
+    match /symbolConfigs/{symbolId} { allow read: if true; }
+    match /leaderboard/{entryId} { allow read: if true; }
+    match /economicEvents/{eventId} { allow read: if true; }
+
+    // User Data
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      
+      match /notifications/{notifId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /tradingAccounts/{acctId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+
+    // Promotions
+    match /promotions/{promoId} {
+      allow list, get: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Educators and Posts
+    match /educators/{educatorId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // System and Config
+    match /apis/{apiId} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /system/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Transactions and Audits
+    match /transactions/{txId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Default Fallback
+    match /{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}
