@@ -13,6 +13,7 @@ export default function ForcedRegistrationModal() {
     year: ''
   });
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // If user is not loaded, or they already have these filled.
   if (!user || (user.realName && user.lastName && user.fiscalCode && user.country && user.birthDate)) {
@@ -29,8 +30,9 @@ export default function ForcedRegistrationModal() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
 
     if (!formData.day || !formData.month || !formData.year) {
@@ -53,15 +55,22 @@ export default function ForcedRegistrationModal() {
     }
 
     if (formData.realName && formData.lastName && formData.fiscalCode && formData.country) {
-      updateUserProfile({
-        realName: formData.realName,
-        lastName: formData.lastName,
-        fiscalCode: formData.fiscalCode,
-        country: formData.country,
-        birthDate: `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
-      }).catch((err: any) => {
+      setIsSubmitting(true);
+      try {
+        await updateUserProfile({
+          realName: formData.realName,
+          lastName: formData.lastName,
+          fiscalCode: formData.fiscalCode,
+          country: formData.country,
+          birthDate: `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
+        });
+        // On success, the state updates and the component will unmount
+      } catch (err: any) {
         setError(err.message || 'Failed to update profile. Please try again.');
-      });
+        setIsSubmitting(false);
+      }
+    } else {
+      setError('Please fill in all required fields.');
     }
   };
 
@@ -156,8 +165,12 @@ export default function ForcedRegistrationModal() {
             </div>
           </div>
 
-          <button type="submit" className="w-full mt-6 py-4 bg-azure rounded-xl text-slate-950 font-bold uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-azure/20">
-            Secure Profile
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="w-full mt-6 py-4 bg-azure rounded-xl text-slate-950 font-bold uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-azure/20 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {isSubmitting ? 'Securing...' : 'Secure Profile'}
           </button>
         </form>
       </div>

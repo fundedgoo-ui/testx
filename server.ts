@@ -1211,7 +1211,7 @@ async function initDb() {
         linked_payment_method TEXT,
         last_report_export_at NUMERIC
       );
-
+      
       CREATE TABLE IF NOT EXISTS sql_trading_accounts (
         id VARCHAR(128) PRIMARY KEY,
         user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
@@ -1409,6 +1409,19 @@ async function initDb() {
       await db.query(`ALTER TABLE sql_audit_logs ADD COLUMN IF NOT EXISTS actor_role VARCHAR(50);`);
       await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS details TEXT;`);
       await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS competition_id VARCHAR(128);`);
+
+      // Add missing columns to sql_users
+      await db.query(`
+        ALTER TABLE sql_users 
+        ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS avatar TEXT,
+        ADD COLUMN IF NOT EXISTS real_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS fiscal_code VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Global';
+      `).catch((err: any) => console.log('ALTER TABLE sql_users skipped or failed:', err.message));
+
     } catch(e) {
       console.error("Migration failed:", e);
     }
@@ -2281,6 +2294,7 @@ async function startServer() {
 
   // Profile Update Endpoint
   app.post("/api/users/profile", authenticate, async (req: any, res: any) => {
+    console.log(`[API] /api/users/profile called by ${req.user.id}`, req.body);
     try {
       const { name, phone, avatar, realName, lastName, fiscalCode, birthDate, country } = req.body;
       const db = getDb();
