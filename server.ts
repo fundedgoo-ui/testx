@@ -2297,7 +2297,17 @@ async function startServer() {
             birth_date = COALESCE($7, birth_date),
             country = COALESCE($8, country)
         WHERE id = $9
-      `, [name, phone, avatar, realName, lastName, fiscalCode, birthDate, country, req.user.id]);
+      `, [
+        name !== undefined ? name : null,
+        phone !== undefined ? phone : null,
+        avatar !== undefined ? avatar : null,
+        realName !== undefined ? realName : null,
+        lastName !== undefined ? lastName : null,
+        fiscalCode !== undefined ? fiscalCode : null,
+        birthDate !== undefined ? birthDate : null,
+        country !== undefined ? country : null,
+        req.user.id
+      ]);
 
       res.json({ success: true });
     } catch (e: any) {

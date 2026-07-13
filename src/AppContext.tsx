@@ -984,23 +984,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateUserProfile = async (data: Partial<UserAccount>) => {
     if (!user) {
-      console.warn("[Firebase] Cannot update profile: No user loaded.");
+      console.warn("[Postgres] Cannot update profile: No user loaded.");
       return;
     }
-    console.log(`[Firebase] Attempting to update profile for ${user.id}:`, data);
-    const ref = doc(db, "users", user.id);
+    console.log(`[Postgres] Attempting to update profile for ${user.id}:`, data);
     
     // Prevent updating sensitive fields if not admin
     const { role, balance, equity, status, ...safeData } = data as any;
     
     try {
-      await updateDoc(ref, safeData);
-      console.log(`[Firebase] Profile updated successfully for ${user.id}`);
+      await fetchWithAuth("/api/users/profile", {
+        method: "POST",
+        body: JSON.stringify(safeData)
+      });
+      console.log(`[Postgres] Profile updated successfully for ${user.id}`);
       // Update local state
       setUser(prev => prev ? { ...prev, ...safeData } : null);
     } catch (err: any) {
-      console.error(`[Firebase] Profile update failed for ${user.id}:`, err);
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.id}`);
+      console.error(`[Postgres] Profile update failed for ${user.id}:`, err);
+      throw err;
     }
   };
 

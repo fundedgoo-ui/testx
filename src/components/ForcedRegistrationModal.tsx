@@ -59,6 +59,8 @@ export default function ForcedRegistrationModal() {
         fiscalCode: formData.fiscalCode,
         country: formData.country,
         birthDate: `${formData.year}-${formData.month.padStart(2, '0')}-${formData.day.padStart(2, '0')}`
+      }).catch((err: any) => {
+        setError(err.message || 'Failed to update profile. Please try again.');
       });
     }
   };
