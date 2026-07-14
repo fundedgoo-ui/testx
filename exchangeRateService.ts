@@ -303,7 +303,7 @@ export async function performDailyBackup(dbAdmin: any, pool: pg.Pool | null, rat
       await dbAdmin.collection("ratesHistory").doc(dateStr).set({
         date: dateStr,
         rates: rates,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: new Date(),
       });
       console.log(`[ExchangeRate] Saved historical Rates to Firestore for ${dateStr}`);
     } catch (e) {

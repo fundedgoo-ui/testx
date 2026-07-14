@@ -183,9 +183,10 @@ async function initFirebase() {
   }
 
   // Database ID from config or environment
+  // If we are on Railway / production (FIREBASE_SERVICE_ACCOUNT is set), we should default to (default) unless VITE_FIREBASE_DATABASE_ID is explicitly set
   const databaseId = 
     process.env.VITE_FIREBASE_DATABASE_ID || 
-    firebaseConfig.firestoreDatabaseId || 
+    (process.env.FIREBASE_SERVICE_ACCOUNT ? undefined : firebaseConfig.firestoreDatabaseId) || 
     undefined;
 
   dbAdmin = getAdminFirestore(firebaseAdminApp, databaseId);
@@ -1002,8 +1003,10 @@ const { Pool } = pg;
 let pool: pg.Pool | null = null;
 function getDb() {
   if (!pool && process.env.DATABASE_URL) {
+    const isProduction = process.env.NODE_ENV === "production" || !!process.env.FIREBASE_SERVICE_ACCOUNT;
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      ssl: isProduction ? { rejectUnauthorized: false } : undefined,
     });
   }
   return pool;
@@ -3373,7 +3376,7 @@ Format and return your analysis strictly as a JSON object with the following str
               uid, 
               role: 'admin', 
               bootstrapped: true,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+              updatedAt: new Date() 
             }, { merge: true });
             console.log(`Admin ${uid} bootstrapped.`);
           }
