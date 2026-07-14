@@ -2,6 +2,9 @@
 
 Acest document explică cum să muți aplicația de pe AI Studio pe Railway și cum să configurezi bazele de date (Firestore și PostgreSQL).
 
+> 💡 **Notă importantă privind conexiunea PostgreSQL**: 
+> Am adăugat un sistem de securitate cu **auto-retry (20 de încercări la intervale de 3 secunde)**. Când repornești aplicația sau când baza de date de pe Railway se încarcă mai greu decât serverul principal la redeploy, aplicația va aștepta politicos până când PostgreSQL este complet activ, prevenind crash-urile de pornire.
+
 ## 1. Pregătire GitHub & Railway
 1. **Push pe GitHub**: Folosește opțiunea "Export to GitHub" din meniul AI Studio (Settings).
 2. **Conectare Railway**: Mergi pe [railway.app](https://railway.app), loghează-te cu GitHub și alege "New Project" -> "Deploy from GitHub repo".
