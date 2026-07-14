@@ -1170,294 +1170,310 @@ async function seedEssentialPostgresData(db: pg.Pool) {
 }
 
 // Ensure the tables exist
-async function initDb() {
+async function initDb(retries = 20, delayMs = 3000) {
   const db = getDb();
   if (!db) {
     console.warn("DATABASE_URL not found. Skipping PostgreSQL initialization.");
     return;
   }
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS sql_users (
-        id VARCHAR(128) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL UNIQUE,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(50) DEFAULT 'user',
-        balance NUMERIC DEFAULT 0,
-        equity NUMERIC DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'active',
-        leverage VARCHAR(20) DEFAULT '1:100',
-        pnl NUMERIC DEFAULT 0,
-        pnl_percentage NUMERIC DEFAULT 0,
-        is_verified BOOLEAN DEFAULT FALSE,
-        verification_status VARCHAR(50) DEFAULT 'unverified',
-        phone VARCHAR(50),
-        avatar TEXT,
-        real_name VARCHAR(255),
-        last_name VARCHAR(255),
-        fiscal_code VARCHAR(100),
-        birth_date VARCHAR(50),
-        country VARCHAR(100) DEFAULT 'Global',
-        allow_profile_edit BOOLEAN DEFAULT TRUE,
-        created_at NUMERIC DEFAULT 0,
-        win_rate NUMERIC DEFAULT 0,
-        total_trades INTEGER DEFAULT 0,
-        profit_factor NUMERIC DEFAULT 0,
-        max_drawdown NUMERIC DEFAULT 0,
-        is_hostes BOOLEAN DEFAULT FALSE,
-        is_bot BOOLEAN DEFAULT FALSE,
-        bot_profile_id VARCHAR(128),
-        referral_code VARCHAR(50),
-        referred_by VARCHAR(128),
-        referrals TEXT,
-        linked_payment_method TEXT,
-        last_report_export_at NUMERIC
-      );
-      
-      CREATE TABLE IF NOT EXISTS sql_trading_accounts (
-        id VARCHAR(128) PRIMARY KEY,
-        user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
-        platform VARCHAR(50) DEFAULT 'GOO',
-        account_number VARCHAR(50) NOT NULL UNIQUE,
-        broker VARCHAR(100) DEFAULT 'FundedGoo Markets',
-        server VARCHAR(100) DEFAULT 'FundedGoo-Live',
-        status VARCHAR(50) DEFAULT 'active',
-        leverage VARCHAR(20) DEFAULT '1:100',
-        type VARCHAR(50) NOT NULL,
-        competition_id VARCHAR(128),
-        created_at NUMERIC NOT NULL,
-        balance NUMERIC DEFAULT 100000,
-        equity NUMERIC DEFAULT 100000,
-        initial_balance NUMERIC DEFAULT 100000,
-        initial_fee NUMERIC DEFAULT 0,
-        fee_refunded BOOLEAN DEFAULT FALSE,
-        open_trades TEXT,
-        pending_orders TEXT,
-        history TEXT,
-        rules TEXT,
-        payout_milestones TEXT,
-        mt5_sync TEXT,
-        certificates TEXT,
-        consistency_warnings_count INTEGER DEFAULT 0,
-        scalp_warnings_count INTEGER DEFAULT 0
-      );
 
-      CREATE TABLE IF NOT EXISTS sql_packages (
-        id VARCHAR(128) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        price NUMERIC NOT NULL,
-        allocation NUMERIC NOT NULL,
-        leverage VARCHAR(50) NOT NULL,
-        profit_target NUMERIC NOT NULL,
-        daily_drawdown NUMERIC NOT NULL,
-        total_drawdown_limit NUMERIC NOT NULL,
-        platform_fees TEXT,
-        is_popular BOOLEAN DEFAULT FALSE,
-        description TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at NUMERIC DEFAULT 0
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_competitions (
-        id VARCHAR(128) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE,
-        bots_enabled BOOLEAN DEFAULT TRUE,
-        current_month_name VARCHAR(100),
-        start_date TIMESTAMP NOT NULL,
-        end_date TIMESTAMP NOT NULL,
-        prizes TEXT,
-        rules TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_promotions (
-        id VARCHAR(128) PRIMARY KEY,
-        code VARCHAR(100) NOT NULL UNIQUE,
-        discount NUMERIC NOT NULL,
-        description TEXT,
-        usage_count INTEGER DEFAULT 0,
-        max_usage INTEGER DEFAULT 100,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_notifications (
-        id VARCHAR(128) PRIMARY KEY,
-        user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
-        type VARCHAR(50) DEFAULT 'info',
-        read BOOLEAN DEFAULT FALSE,
-        created_at NUMERIC NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_leaderboard (
-        id VARCHAR(128) PRIMARY KEY,
-        user_id VARCHAR(128),
-        name VARCHAR(255) NOT NULL,
-        avatar TEXT,
-        rank INTEGER NOT NULL,
-        gain NUMERIC NOT NULL,
-        profit NUMERIC NOT NULL,
-        trades INTEGER NOT NULL,
-        win_rate NUMERIC NOT NULL,
-        is_bot BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_symbol_configs (
-        id VARCHAR(128) PRIMARY KEY,
-        symbol VARCHAR(50) NOT NULL UNIQUE,
-        spread NUMERIC NOT NULL,
-        pip_size NUMERIC NOT NULL,
-        contract_size NUMERIC NOT NULL,
-        commission NUMERIC DEFAULT 0,
-        is_active BOOLEAN DEFAULT TRUE,
-        updated_at NUMERIC NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_economic_events (
-        id VARCHAR(128) PRIMARY KEY,
-        time VARCHAR(20) NOT NULL,
-        currency VARCHAR(10) NOT NULL,
-        event VARCHAR(255) NOT NULL,
-        impact VARCHAR(20) DEFAULT 'low',
-        forecast VARCHAR(50),
-        previous VARCHAR(50),
-        actual VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_educators (
-        id VARCHAR(128) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        bio TEXT,
-        specialty VARCHAR(100),
-        telegram VARCHAR(255),
-        avatar TEXT,
-        status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_verification_requests (
-        id VARCHAR(128) PRIMARY KEY,
-        user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
-        full_name VARCHAR(255) NOT NULL,
-        id_number VARCHAR(100) NOT NULL,
-        address TEXT NOT NULL,
-        id_document TEXT,
-        address_document TEXT,
-        status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_system_settings (
-        key VARCHAR(128) PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_transactions (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(128) NOT NULL,
-        amount NUMERIC NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        status VARCHAR(50) NOT NULL,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        payment_method VARCHAR(100),
-        description TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_audit_logs (
-        id SERIAL PRIMARY KEY,
-        action VARCHAR(255) NOT NULL,
-        user_id VARCHAR(128),
-        target_id VARCHAR(128),
-        target_name VARCHAR(255),
-        type VARCHAR(100) NOT NULL,
-        details TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_positions (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(128) NOT NULL,
-        symbol VARCHAR(50) NOT NULL,
-        lots NUMERIC NOT NULL,
-        open_price NUMERIC NOT NULL,
-        type VARCHAR(10) NOT NULL,
-        sl NUMERIC,
-        tp NUMERIC,
-        open_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        close_price NUMERIC,
-        close_time TIMESTAMP,
-        pnl NUMERIC,
-        status VARCHAR(20) DEFAULT 'open'
-      );
-
-      CREATE TABLE IF NOT EXISTS sql_user_verifications (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(128) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        token VARCHAR(255) NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        verified BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await db.query(`ALTER TABLE sql_audit_logs ADD COLUMN IF NOT EXISTS actor_name VARCHAR(255);`);
-      await db.query(`ALTER TABLE sql_audit_logs ADD COLUMN IF NOT EXISTS actor_role VARCHAR(50);`);
-      await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS details TEXT;`);
-      await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS competition_id VARCHAR(128);`);
+      console.log(`[Postgres] Connection attempt ${attempt}/${retries}...`);
+      // Run a quick query to test connectivity before launching tables creation
+      await db.query("SELECT 1");
 
-      // Add missing columns to sql_users
+      console.log("[Postgres] Connection successful! Creating tables and runs database migrations...");
+
       await db.query(`
-        ALTER TABLE sql_users 
-        ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
-        ADD COLUMN IF NOT EXISTS avatar TEXT,
-        ADD COLUMN IF NOT EXISTS real_name VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS fiscal_code VARCHAR(100),
-        ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50),
-        ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Global';
-      `).catch((err: any) => console.log('ALTER TABLE sql_users skipped or failed:', err.message));
+        CREATE TABLE IF NOT EXISTS sql_users (
+          id VARCHAR(128) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
+          role VARCHAR(50) DEFAULT 'user',
+          balance NUMERIC DEFAULT 0,
+          equity NUMERIC DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'active',
+          leverage VARCHAR(20) DEFAULT '1:100',
+          pnl NUMERIC DEFAULT 0,
+          pnl_percentage NUMERIC DEFAULT 0,
+          is_verified BOOLEAN DEFAULT FALSE,
+          verification_status VARCHAR(50) DEFAULT 'unverified',
+          phone VARCHAR(50),
+          avatar TEXT,
+          real_name VARCHAR(255),
+          last_name VARCHAR(255),
+          fiscal_code VARCHAR(100),
+          birth_date VARCHAR(50),
+          country VARCHAR(100) DEFAULT 'Global',
+          allow_profile_edit BOOLEAN DEFAULT TRUE,
+          created_at NUMERIC DEFAULT 0,
+          win_rate NUMERIC DEFAULT 0,
+          total_trades INTEGER DEFAULT 0,
+          profit_factor NUMERIC DEFAULT 0,
+          max_drawdown NUMERIC DEFAULT 0,
+          is_hostes BOOLEAN DEFAULT FALSE,
+          is_bot BOOLEAN DEFAULT FALSE,
+          bot_profile_id VARCHAR(128),
+          referral_code VARCHAR(50),
+          referred_by VARCHAR(128),
+          referrals TEXT,
+          linked_payment_method TEXT,
+          last_report_export_at NUMERIC
+        );
+        
+        CREATE TABLE IF NOT EXISTS sql_trading_accounts (
+          id VARCHAR(128) PRIMARY KEY,
+          user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
+          platform VARCHAR(50) DEFAULT 'GOO',
+          account_number VARCHAR(50) NOT NULL UNIQUE,
+          broker VARCHAR(100) DEFAULT 'FundedGoo Markets',
+          server VARCHAR(100) DEFAULT 'FundedGoo-Live',
+          status VARCHAR(50) DEFAULT 'active',
+          leverage VARCHAR(20) DEFAULT '1:100',
+          type VARCHAR(50) NOT NULL,
+          competition_id VARCHAR(128),
+          created_at NUMERIC NOT NULL,
+          balance NUMERIC DEFAULT 100000,
+          equity NUMERIC DEFAULT 100000,
+          initial_balance NUMERIC DEFAULT 100000,
+          initial_fee NUMERIC DEFAULT 0,
+          fee_refunded BOOLEAN DEFAULT FALSE,
+          open_trades TEXT,
+          pending_orders TEXT,
+          history TEXT,
+          rules TEXT,
+          payout_milestones TEXT,
+          mt5_sync TEXT,
+          certificates TEXT,
+          consistency_warnings_count INTEGER DEFAULT 0,
+          scalp_warnings_count INTEGER DEFAULT 0
+        );
 
-    } catch(e) {
-      console.error("Migration failed:", e);
+        CREATE TABLE IF NOT EXISTS sql_packages (
+          id VARCHAR(128) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          price NUMERIC NOT NULL,
+          allocation NUMERIC NOT NULL,
+          leverage VARCHAR(50) NOT NULL,
+          profit_target NUMERIC NOT NULL,
+          daily_drawdown NUMERIC NOT NULL,
+          total_drawdown_limit NUMERIC NOT NULL,
+          platform_fees TEXT,
+          is_popular BOOLEAN DEFAULT FALSE,
+          description TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at NUMERIC DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_competitions (
+          id VARCHAR(128) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          is_active BOOLEAN DEFAULT TRUE,
+          bots_enabled BOOLEAN DEFAULT TRUE,
+          current_month_name VARCHAR(100),
+          start_date TIMESTAMP NOT NULL,
+          end_date TIMESTAMP NOT NULL,
+          prizes TEXT,
+          rules TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_promotions (
+          id VARCHAR(128) PRIMARY KEY,
+          code VARCHAR(100) NOT NULL UNIQUE,
+          discount NUMERIC NOT NULL,
+          description TEXT,
+          usage_count INTEGER DEFAULT 0,
+          max_usage INTEGER DEFAULT 100,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_notifications (
+          id VARCHAR(128) PRIMARY KEY,
+          user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          type VARCHAR(50) DEFAULT 'info',
+          read BOOLEAN DEFAULT FALSE,
+          created_at NUMERIC NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_leaderboard (
+          id VARCHAR(128) PRIMARY KEY,
+          user_id VARCHAR(128),
+          name VARCHAR(255) NOT NULL,
+          avatar TEXT,
+          rank INTEGER NOT NULL,
+          gain NUMERIC NOT NULL,
+          profit NUMERIC NOT NULL,
+          trades INTEGER NOT NULL,
+          win_rate NUMERIC NOT NULL,
+          is_bot BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_symbol_configs (
+          id VARCHAR(128) PRIMARY KEY,
+          symbol VARCHAR(50) NOT NULL UNIQUE,
+          spread NUMERIC NOT NULL,
+          pip_size NUMERIC NOT NULL,
+          contract_size NUMERIC NOT NULL,
+          commission NUMERIC DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          updated_at NUMERIC NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_economic_events (
+          id VARCHAR(128) PRIMARY KEY,
+          time VARCHAR(20) NOT NULL,
+          currency VARCHAR(10) NOT NULL,
+          event VARCHAR(255) NOT NULL,
+          impact VARCHAR(20) DEFAULT 'low',
+          forecast VARCHAR(50),
+          previous VARCHAR(50),
+          actual VARCHAR(50),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_educators (
+          id VARCHAR(128) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          bio TEXT,
+          specialty VARCHAR(100),
+          telegram VARCHAR(255),
+          avatar TEXT,
+          status VARCHAR(50) DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_verification_requests (
+          id VARCHAR(128) PRIMARY KEY,
+          user_id VARCHAR(128) REFERENCES sql_users(id) ON DELETE CASCADE,
+          full_name VARCHAR(255) NOT NULL,
+          id_number VARCHAR(100) NOT NULL,
+          address TEXT NOT NULL,
+          id_document TEXT,
+          address_document TEXT,
+          status VARCHAR(50) DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_system_settings (
+          key VARCHAR(128) PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_transactions (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(128) NOT NULL,
+          amount NUMERIC NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          payment_method VARCHAR(100),
+          description TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_audit_logs (
+          id SERIAL PRIMARY KEY,
+          action VARCHAR(255) NOT NULL,
+          user_id VARCHAR(128),
+          target_id VARCHAR(128),
+          target_name VARCHAR(255),
+          type VARCHAR(100) NOT NULL,
+          details TEXT,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_positions (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(128) NOT NULL,
+          symbol VARCHAR(50) NOT NULL,
+          lots NUMERIC NOT NULL,
+          open_price NUMERIC NOT NULL,
+          type VARCHAR(10) NOT NULL,
+          sl NUMERIC,
+          tp NUMERIC,
+          open_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          close_price NUMERIC,
+          close_time TIMESTAMP,
+          pnl NUMERIC,
+          status VARCHAR(20) DEFAULT 'open'
+        );
+
+        CREATE TABLE IF NOT EXISTS sql_user_verifications (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(128) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          token VARCHAR(255) NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          verified BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      try {
+        await db.query(`ALTER TABLE sql_audit_logs ADD COLUMN IF NOT EXISTS actor_name VARCHAR(255);`);
+        await db.query(`ALTER TABLE sql_audit_logs ADD COLUMN IF NOT EXISTS actor_role VARCHAR(50);`);
+        await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS details TEXT;`);
+        await db.query(`ALTER TABLE sql_positions ADD COLUMN IF NOT EXISTS competition_id VARCHAR(128);`);
+
+        // Add missing columns to sql_users
+        await db.query(`
+          ALTER TABLE sql_users 
+          ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS avatar TEXT,
+          ADD COLUMN IF NOT EXISTS real_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS last_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS fiscal_code VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Global';
+        `).catch((err: any) => console.log('ALTER TABLE sql_users skipped or failed:', err.message));
+
+      } catch(e) {
+        console.error("Migration failed:", e);
+      }
+
+      // Seed default admin
+      const adminCheck = await db.query("SELECT * FROM sql_users WHERE email = $1", ["admin@prop.com"]);
+      if (adminCheck.rows.length === 0) {
+        const hash = await bcrypt.hash("admin123", 10);
+        await db.query(`
+          INSERT INTO sql_users (id, name, email, password_hash, role, balance, equity, status, leverage, is_verified, verification_status, created_at, win_rate, total_trades, profit_factor, max_drawdown)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        `, [
+          "admin-uid-123456",
+          "System Admin",
+          "admin@prop.com",
+          hash,
+          "admin",
+          1000000,
+          1000000,
+          "active",
+          "1:100",
+          true,
+          "verified",
+          Date.now(),
+          0, 0, 0, 0
+        ]);
+        console.log("PostgreSQL: Seeded default admin@prop.com / admin123");
+      }
+
+      await seedEssentialPostgresData(db);
+      console.log("PostgreSQL initialized successfully.");
+      return; // Exit function on success
+    } catch (error: any) {
+      console.warn(`[Postgres] Connection attempt ${attempt} failed. Error: ${error.message}`);
+      if (attempt === retries) {
+        console.error("[Postgres] Max retries reached. Database initialization failed permanently:", error);
+      } else {
+        console.log(`[Postgres] Waiting ${delayMs / 1000}s before retrying...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
-
-    // Seed default admin
-    const adminCheck = await db.query("SELECT * FROM sql_users WHERE email = $1", ["admin@prop.com"]);
-    if (adminCheck.rows.length === 0) {
-      const hash = await bcrypt.hash("admin123", 10);
-      await db.query(`
-        INSERT INTO sql_users (id, name, email, password_hash, role, balance, equity, status, leverage, is_verified, verification_status, created_at, win_rate, total_trades, profit_factor, max_drawdown)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-      `, [
-        "admin-uid-123456",
-        "System Admin",
-        "admin@prop.com",
-        hash,
-        "admin",
-        1000000,
-        1000000,
-        "active",
-        "1:100",
-        true,
-        "verified",
-        Date.now(),
-        0, 0, 0, 0
-      ]);
-      console.log("PostgreSQL: Seeded default admin@prop.com / admin123");
-    }
-
-    await seedEssentialPostgresData(db);
-    console.log("PostgreSQL initialized.");
-  } catch (error) {
-    console.error("Failed to initialize PostgreSQL:", error);
   }
 }
 
