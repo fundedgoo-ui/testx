@@ -41,6 +41,7 @@ import {
   Award,
   GraduationCap
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import ThreeDCard from './ThreeDCard';
 import Logo from './Logo';
@@ -899,7 +900,12 @@ function GiveawayTab({ users, packages, onGenerate }: { users: UserAccount[], pa
   const [accountType, setAccountType] = useState<'evaluation-1' | 'evaluation-2' | 'funded'>('evaluation-2');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const filteredUsers = users.filter(u => u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const suggestions = searchTerm.trim() === ''
+    ? []
+    : users.filter(u => 
+        u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      ).slice(0, 8);
 
   const toggleUser = (userId: string) => {
     const next = new Set(selectedUsers);
@@ -945,33 +951,97 @@ function GiveawayTab({ users, packages, onGenerate }: { users: UserAccount[], pa
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Left Column: User Search and Selection */}
-          <div className="space-y-4">
+          <div className="space-y-4 relative">
              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Search & Select Users</label>
-             <div className="relative">
+             <div className="relative z-30">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input 
                   type="text" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search traders..." 
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-white/10 rounded-xl text-white outline-none" 
+                  placeholder="Type to search traders..." 
+                  className="w-full pl-10 pr-4 py-3 bg-slate-950/50 border border-white/10 rounded-xl text-white outline-none focus:border-azure/50 transition-colors text-sm" 
                 />
              </div>
              
-             <div className="h-64 overflow-y-auto bg-slate-900 rounded-xl border border-white/10 p-2 space-y-1">
-                {filteredUsers.map(user => (
-                  <div 
-                    key={user.id}
-                    onClick={() => toggleUser(user.id)}
-                    className={`p-3 rounded-lg cursor-pointer flex items-center justify-between ${selectedUsers.has(user.id) ? 'bg-azure/20' : 'hover:bg-white/5'}`}
-                  >
-                    <div>
-                      <p className="text-sm font-bold text-white">{user.name}</p>
-                      <p className="text-xs text-slate-500">{user.email}</p>
-                    </div>
-                    {selectedUsers.has(user.id) && <CheckCircle size={16} className="text-azure" />}
-                  </div>
-                ))}
+             {/* Suggestions List Dropdown */}
+             <AnimatePresence>
+                {suggestions.length > 0 && (
+                   <motion.div
+                     initial={{ opacity: 0, y: -5 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, y: -5 }}
+                     className="absolute left-0 right-0 top-20 bg-slate-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-40 max-h-60 overflow-y-auto"
+                   >
+                     {suggestions.map((u) => (
+                       <button
+                         key={u.id}
+                         onClick={() => {
+                           toggleUser(u.id);
+                           setSearchTerm('');
+                         }}
+                         className="w-full px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 text-left flex items-center justify-between transition-colors font-sans"
+                       >
+                         <div>
+                           <p className="text-xs font-bold text-white">{u.name}</p>
+                           <p className="text-[10px] text-slate-500 font-mono mt-0.5">{u.email}</p>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           {selectedUsers.has(u.id) ? (
+                             <span className="text-[10px] bg-azure/20 text-azure px-2 py-0.5 rounded font-bold uppercase">Selected</span>
+                           ) : (
+                             <span className="text-[10px] text-slate-500 uppercase">Click to select</span>
+                           )}
+                         </div>
+                       </button>
+                     ))}
+                   </motion.div>
+                )}
+             </AnimatePresence>
+
+             {/* Selected Users Bucket */}
+             <div className="space-y-2 mt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Traders ({selectedUsers.size})</span>
+                  {selectedUsers.size > 0 && (
+                    <button 
+                      onClick={() => setSelectedUsers(new Set())}
+                      className="text-[9px] font-bold text-red-400 uppercase tracking-widest hover:underline animate-fade-in"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                <div className="h-64 overflow-y-auto bg-slate-950/40 rounded-2xl border border-white/5 p-4 space-y-2 custom-scrollbar">
+                   {selectedUsers.size === 0 ? (
+                     <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 p-4">
+                       <p className="text-xs font-bold uppercase tracking-wider mb-1">No traders selected</p>
+                       <p className="text-[10px] max-w-[200px]">Type their name or email above to search and select them.</p>
+                     </div>
+                   ) : (
+                     Array.from(selectedUsers).map(userId => {
+                       const uObj = users.find(u => u.id === userId);
+                       if (!uObj) return null;
+                       return (
+                         <div 
+                           key={userId}
+                           className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors"
+                         >
+                           <div>
+                             <p className="text-xs font-bold text-white">{uObj.name}</p>
+                             <p className="text-[10px] text-slate-500 font-mono">{uObj.email}</p>
+                           </div>
+                           <button 
+                             onClick={() => toggleUser(userId)}
+                             className="text-[10px] bg-red-500/10 text-red-400 px-2.5 py-1 rounded-lg font-bold hover:bg-red-500/20 transition-all uppercase"
+                           >
+                             Remove
+                           </button>
+                         </div>
+                       );
+                     })
+                   )}
+                </div>
              </div>
           </div>
           
@@ -1031,6 +1101,12 @@ function UsersTab({ users, onUpdate, onDelete }: { users: UserAccount[], onUpdat
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', balance: 50000 });
   const [selectedTrader, setSelectedTrader] = useState<UserAccount | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredUsers = users.filter(user => 
+    user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <>
@@ -1040,7 +1116,13 @@ function UsersTab({ users, onUpdate, onDelete }: { users: UserAccount[], onUpdat
           <div className="flex gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-               <input type="text" placeholder="Search accounts..." className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white outline-none" />
+               <input 
+                 type="text" 
+                 placeholder="Search accounts..." 
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-azure/50 transition-colors" 
+               />
             </div>
             {isAdmin && (
               <button 
@@ -1065,7 +1147,7 @@ function UsersTab({ users, onUpdate, onDelete }: { users: UserAccount[], onUpdat
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.id} className={`hover:bg-white/5 transition-colors ${user.status === 'banned' ? 'opacity-50' : ''}`}>
                   <td className="p-6 cursor-pointer" onClick={() => setSelectedTrader(user)}>
                     <div className="flex items-center gap-3">
