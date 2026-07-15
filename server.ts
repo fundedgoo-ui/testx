@@ -3555,14 +3555,17 @@ Format and return your analysis strictly as a JSON object with the following str
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Serve statically if dist is already built, or fall back to Vite middleware
+  const hasDist = fs.existsSync(path.join(process.cwd(), "dist/index.html"));
+  if (process.env.NODE_ENV !== "production" && !hasDist) {
+    console.log("[Vite] Starting development server middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
+    console.log("[Production/Static] Serving compiled assets from dist folder...");
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
