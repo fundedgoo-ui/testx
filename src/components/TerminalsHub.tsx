@@ -8,6 +8,7 @@ export default function TerminalsHub() {
   const { user, generateTradingAccount, setActiveView, setActiveAccountId, activeAccountId } = useApp();
   const [isProvisioning, setIsProvisioning] = useState<TradingPlatform | null>(null);
   const [provisionProgress, setProvisionProgress] = useState(0);
+  const [newlyCreatedAccount, setNewlyCreatedAccount] = useState<any | null>(null);
 
   // Simulate loading progress during backend account sync
   useEffect(() => {
@@ -20,7 +21,8 @@ export default function TerminalsHub() {
             clearInterval(interval);
             return 100;
           }
-          return prev + Math.floor(Math.random() * 15) + 8;
+          const nextVal = prev + Math.floor(Math.random() * 15) + 8;
+          return nextVal > 100 ? 100 : nextVal;
         });
       }, 150);
     }
@@ -35,10 +37,12 @@ export default function TerminalsHub() {
       // Set active account ID first
       setActiveAccountId(existing.id);
       // Launch immediately so window.open is synchronous and bypasses popup blocker!
-      setActiveView('web-terminal');
+      setActiveView('web-terminal', existing.id);
     } else {
       // Show loading/linking simulation locally
       setIsProvisioning('GOO');
+      setProvisionProgress(0);
+      setNewlyCreatedAccount(null);
       
       const demoPkg: ShopPackage = {
         id: 'demo-package',
@@ -51,30 +55,16 @@ export default function TerminalsHub() {
         totalDrawdown: 10,
       };
 
-      // Open the window synchronously first with a loading indicator to bypass popup blocker!
-      let win: Window | null = null;
-      try {
-        win = window.open(`/?view=web-terminal&loading=true`, "_blank");
-      } catch (e) {
-        console.warn("Could not open window synchronously, will fall back to inline view", e);
-      }
-
       generateTradingAccount(demoPkg, 'GOO', 'evaluation').then((newAcc) => {
-        setIsProvisioning(null);
         if (newAcc) {
+          setNewlyCreatedAccount(newAcc);
           setActiveAccountId(newAcc.id);
-          if (win) {
-            win.location.href = `/?view=web-terminal&accountId=${newAcc.id}`;
-          } else {
-            setActiveView('web-terminal');
-          }
         } else {
-          if (win) win.close();
+          setIsProvisioning(null);
         }
       }).catch((err) => {
         console.error("Failed to generate demo trading account:", err);
         setIsProvisioning(null);
-        if (win) win.close();
       });
     }
   };
@@ -201,19 +191,46 @@ export default function TerminalsHub() {
           <div className="flex flex-col items-center justify-center text-center space-y-6 pt-4">
             
             {isProvisioning ? (
-              <div className="w-full max-w-sm bg-slate-900/80 border border-azure/30 rounded-2xl p-6 space-y-4 text-center">
-                <div className="flex items-center justify-center gap-3">
-                  <RefreshCw size={20} className="text-azure animate-spin" />
-                  <span className="text-xs font-mono font-bold text-white uppercase tracking-widest animate-pulse">
-                    LINKING PORT: {Math.min(provisionProgress, 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-white/5 p-[1px]">
-                  <div 
-                    className="bg-gradient-to-r from-azure to-blue-500 h-full rounded-full transition-all duration-300 shadow-[0_0_8px_#00f2ff]"
-                    style={{ width: `${Math.min(provisionProgress, 100)}%` }}
-                  />
-                </div>
+              <div className="w-full max-w-sm bg-slate-900/80 border border-azure/30 rounded-2xl p-6 space-y-4 text-center animate-in fade-in zoom-in-95 duration-200">
+                {provisionProgress < 100 || !newlyCreatedAccount ? (
+                  <>
+                    <div className="flex items-center justify-center gap-3">
+                      <RefreshCw size={20} className="text-azure animate-spin" />
+                      <span className="text-xs font-mono font-bold text-white uppercase tracking-widest animate-pulse">
+                        LINKING PORT: {Math.min(provisionProgress, 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-white/5 p-[1px]">
+                      <div 
+                        className="bg-gradient-to-r from-azure to-blue-500 h-full rounded-full transition-all duration-300 shadow-[0_0_8px_#00f2ff]"
+                        style={{ width: `${Math.min(provisionProgress, 100)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center gap-2 text-emerald-400 font-mono font-bold text-xs uppercase tracking-widest">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span>SECURE PORT LINKED</span>
+                    </div>
+                    <p className="text-slate-400 text-xs font-mono leading-relaxed">
+                      GOO Account #{newlyCreatedAccount?.accountNumber} provisioned on ultra-low latency cluster!
+                    </p>
+                    <button
+                      onClick={() => {
+                        setIsProvisioning(null);
+                        setProvisionProgress(0);
+                        const acctId = newlyCreatedAccount.id;
+                        setNewlyCreatedAccount(null);
+                        setActiveView('web-terminal', acctId);
+                      }}
+                      className="w-full py-4 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-sm font-display font-black uppercase tracking-wider transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
+                    >
+                      <ExternalLink size={16} />
+                      <span>Launch Terminal</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="w-full max-w-lg space-y-5">

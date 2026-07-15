@@ -118,7 +118,7 @@ interface AppContextType {
   logout: () => void;
   setIsAdmin: (val: boolean) => void;
   setMobileMenuOpen: (val: boolean) => void;
-  setActiveView: (view: AppView) => void;
+  setActiveView: (view: AppView, accountId?: string) => void;
   addNotification: (
     notif: Omit<Notification, "id" | "timestamp" | "read" | "createdAt">,
     targetUserId?: string
@@ -1650,24 +1650,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const handleSetActiveView = (view: AppView) => {
+  const handleSetActiveView = (view: AppView, accountId?: string) => {
     if (view === "web-terminal") {
       let isStandalone = false;
       try {
         isStandalone = new URLSearchParams(window.location.search).get('view') === 'web-terminal';
       } catch (e) {}
       if (!isStandalone) {
-        const accountParam = activeAccountId ? `&accountId=${activeAccountId}` : '';
+        const targetAccountId = accountId || activeAccountId;
+        const accountParam = targetAccountId ? `&accountId=${targetAccountId}` : '';
         try {
           const win = window.open(`/?view=web-terminal${accountParam}`, "_blank");
           if (!win || win.closed || typeof win.closed === 'undefined') {
             // Popup was blocked or iframe context prevented opening new tab. Fallback to rendering inline!
             setActiveView(view);
+            if (targetAccountId) setActiveAccountId(targetAccountId);
             return;
           }
         } catch (openErr) {
           console.warn("window.open blocked or failed:", openErr);
           setActiveView(view);
+          if (targetAccountId) setActiveAccountId(targetAccountId);
           return;
         }
         return;
