@@ -1340,6 +1340,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       await setDoc(accountRef, newAcc);
+
+      // Save to PostgreSQL backend
+      try {
+        await fetchWithAuth("/api/trading-accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newAcc),
+        });
+      } catch (pgErr) {
+        console.error("Postgres failed to save account:", pgErr);
+      }
       
       // Deduct balance if price > 0 and user is the one paying
       if (pkg.price > 0 && userId === user?.id) {
@@ -1434,6 +1445,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await updateDoc(accountRef, data);
       } else {
         console.warn(`Attempted to update non-existent account ${acctId}. If this was just created, it might be a sync issue.`);
+      }
+
+      // Save to PostgreSQL backend
+      try {
+        await fetchWithAuth("/api/trading-accounts/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: acctId, data }),
+        });
+      } catch (pgErr) {
+        console.error("Postgres failed to update account:", pgErr);
       }
     } catch (e: any) {
       console.error("Firestore failed for account update", e.message || e);
@@ -1636,7 +1658,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {}
       if (!isStandalone) {
         const accountParam = activeAccountId ? `&accountId=${activeAccountId}` : '';
-        window.open(`/?view=web-terminal${accountParam}`, "_blank");
+        const win = window.open(`/?view=web-terminal${accountParam}`, "_blank");
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+          // Popup was blocked or iframe context prevented opening new tab. Fallback to rendering inline!
+          setActiveView(view);
+          return;
+        }
         return;
       }
     }

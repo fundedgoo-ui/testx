@@ -1823,7 +1823,11 @@ async function startServer() {
       res.status(201).json({ token, user: frontendUser });
     } catch (e: any) {
       console.error("Register Error:", e);
-      res.status(500).json({ error: e.message || "Internal error during registration" });
+      let errMsg = e.message || "Internal error during registration";
+      if (e.code === 'ECONNREFUSED' || (e.errors && e.errors.some((err: any) => err.code === 'ECONNREFUSED')) || errMsg.includes('ECONNREFUSED')) {
+        errMsg = "Baza de date PostgreSQL nu este accesibilă (Connection Refused). Te rugăm să verifici dacă serviciul tău Postgres pe Railway este pornit, dacă are credite suficiente/este activ și dacă variabila DATABASE_URL este configurată corect.";
+      }
+      res.status(500).json({ error: errMsg });
     }
   });
 
@@ -1916,7 +1920,11 @@ async function startServer() {
       res.json({ token, user: frontendUser });
     } catch (e: any) {
       console.error("Login Error:", e);
-      res.status(500).json({ error: e.message || "Internal error during login" });
+      let errMsg = e.message || "Internal error during login";
+      if (e.code === 'ECONNREFUSED' || (e.errors && e.errors.some((err: any) => err.code === 'ECONNREFUSED')) || errMsg.includes('ECONNREFUSED')) {
+        errMsg = "Baza de date PostgreSQL nu este accesibilă (Connection Refused). Te rugăm să verifici dacă serviciul tău Postgres pe Railway este pornit, dacă are credite suficiente/este activ și dacă variabila DATABASE_URL este configurată corect.";
+      }
+      res.status(500).json({ error: errMsg });
     }
   });
 
@@ -2604,6 +2612,148 @@ async function startServer() {
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "DB Error" });
+    }
+  });
+
+  app.post("/api/trading-accounts", authenticate, async (req: any, res: any) => {
+    const db = getDb();
+    if (!db) return res.status(500).json({ error: "Database not ready" });
+    try {
+      const account = req.body;
+      const userId = account.userId;
+      
+      // Security Check
+      if (userId !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'moderator') {
+        return res.status(403).json({ error: "Forbidden: Access denied to create trading account for another user" });
+      }
+
+      await db.query(`
+        INSERT INTO sql_trading_accounts (
+          id, user_id, platform, account_number, broker, server, status, leverage, type, competition_id, created_at, balance, equity, initial_balance, initial_fee, fee_refunded, rules, open_trades, pending_orders, history, payout_milestones, mt5_sync, certificates
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        ON CONFLICT (id) DO UPDATE SET
+          platform = EXCLUDED.platform,
+          account_number = EXCLUDED.account_number,
+          status = EXCLUDED.status,
+          leverage = EXCLUDED.leverage,
+          balance = EXCLUDED.balance,
+          equity = EXCLUDED.equity,
+          rules = EXCLUDED.rules,
+          open_trades = EXCLUDED.open_trades,
+          pending_orders = EXCLUDED.pending_orders,
+          history = EXCLUDED.history,
+          payout_milestones = EXCLUDED.payout_milestones,
+          mt5_sync = EXCLUDED.mt5_sync,
+          certificates = EXCLUDED.certificates
+      `, [
+        account.id,
+        userId,
+        account.platform || "GOO",
+        account.accountNumber,
+        account.broker || "FundedGoo Markets",
+        account.server || "FundedGoo-Live",
+        account.status || "active",
+        account.leverage || "1:100",
+        account.type,
+        account.competitionId || null,
+        Number(account.createdAt || Date.now()),
+        Number(account.balance || 0),
+        Number(account.equity || 0),
+        Number(account.initialBalance || 0),
+        Number(account.initialFee || 0),
+        account.feeRefunded || false,
+        JSON.stringify(account.rules || {}),
+        JSON.stringify(account.openTrades || []),
+        JSON.stringify(account.pendingOrders || []),
+        JSON.stringify(account.history || []),
+        JSON.stringify(account.payoutMilestones || []),
+        JSON.stringify(account.mt5Sync || null),
+        JSON.stringify(account.certificates || [])
+      ]);
+
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("Error creating/upserting trading account:", e);
+      res.status(500).json({ error: e.message || "Failed to create/upsert trading account" });
+    }
+  });
+
+  app.post("/api/trading-accounts/update", authenticate, async (req: any, res: any) => {
+    const db = getDb();
+    if (!db) return res.status(500).json({ error: "Database not ready" });
+    try {
+      const { id, data } = req.body;
+      if (!id || !data) return res.status(400).json({ error: "id and data are required" });
+
+      // Check existence and ownership
+      const existing = await db.query("SELECT * FROM sql_trading_accounts WHERE id = $1", [id]);
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: "Account not found" });
+      }
+
+      const account = existing.rows[0];
+      if (account.user_id !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'moderator') {
+        return res.status(403).json({ error: "Forbidden: Access denied to update this account" });
+      }
+
+      // Build dynamic update query
+      const fieldsToUpdate: string[] = [];
+      const values: any[] = [];
+      let index = 1;
+
+      if (data.balance !== undefined) {
+        fieldsToUpdate.push(`balance = $${index++}`);
+        values.push(Number(data.balance));
+      }
+      if (data.equity !== undefined) {
+        fieldsToUpdate.push(`equity = $${index++}`);
+        values.push(Number(data.equity));
+      }
+      if (data.status !== undefined) {
+        fieldsToUpdate.push(`status = $${index++}`);
+        values.push(data.status);
+      }
+      if (data.openTrades !== undefined) {
+        fieldsToUpdate.push(`open_trades = $${index++}`);
+        values.push(JSON.stringify(data.openTrades));
+      }
+      if (data.pendingOrders !== undefined) {
+        fieldsToUpdate.push(`pending_orders = $${index++}`);
+        values.push(JSON.stringify(data.pendingOrders));
+      }
+      if (data.history !== undefined) {
+        fieldsToUpdate.push(`history = $${index++}`);
+        values.push(JSON.stringify(data.history));
+      }
+      if (data.rules !== undefined) {
+        fieldsToUpdate.push(`rules = $${index++}`);
+        values.push(JSON.stringify(data.rules));
+      }
+      if (data.payoutMilestones !== undefined) {
+        fieldsToUpdate.push(`payout_milestones = $${index++}`);
+        values.push(JSON.stringify(data.payoutMilestones));
+      }
+      if (data.mt5Sync !== undefined) {
+        fieldsToUpdate.push(`mt5_sync = $${index++}`);
+        values.push(JSON.stringify(data.mt5Sync));
+      }
+      if (data.certificates !== undefined) {
+        fieldsToUpdate.push(`certificates = $${index++}`);
+        values.push(JSON.stringify(data.certificates));
+      }
+
+      if (fieldsToUpdate.length === 0) {
+        return res.json({ success: true, message: "No fields to update" });
+      }
+
+      values.push(id);
+      const queryText = `UPDATE sql_trading_accounts SET ${fieldsToUpdate.join(", ")} WHERE id = $${index}`;
+      await db.query(queryText, values);
+
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("Error updating trading account:", e);
+      res.status(500).json({ error: e.message || "Failed to update trading account" });
     }
   });
 

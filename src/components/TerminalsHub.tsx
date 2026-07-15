@@ -58,6 +58,9 @@ export default function TerminalsHub() {
             setActiveAccountId(newAcc.id);
           }
           setActiveView('web-terminal');
+        }).catch((err) => {
+          console.error("Failed to generate demo trading account:", err);
+          setIsProvisioning(null);
         });
       }, 2000);
     }
