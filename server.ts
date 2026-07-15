@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import dotenv from "dotenv";
 dotenv.config();
 import pg from "pg";
+import sqlite3 from "sqlite3";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import admin from 'firebase-admin';
@@ -999,45 +1000,161 @@ function decrypt(text: string) {
 }
 
 const { Pool } = pg;
-let pool: pg.Pool | null = null;
-function getDb() {
-  if (!pool && process.env.DATABASE_URL) {
-    const connStr = process.env.DATABASE_URL;
-    let useSsl = false;
-    
-    // Default to using SSL in production (e.g. external connections)
-    if (process.env.NODE_ENV === "production" || !!process.env.FIREBASE_SERVICE_ACCOUNT) {
-      useSsl = true;
-    }
-    
-    // Explicitly disable SSL for known internal/private hostnames or local connections
-    if (
-      connStr.includes("railway.internal") || 
-      connStr.includes(".internal") ||
-      connStr.includes("10.132.") ||  // Railway private IPv4 space
-      connStr.includes("10.0.") ||    // Common private IPv4
-      connStr.includes("192.168.") || // Common private IPv4
-      connStr.includes("172.16.") ||  // Common private IPv4
-      connStr.includes("[fd12:") ||   // Railway private IPv6 address
-      connStr.includes("localhost") ||
-      connStr.includes("127.0.0.1") ||
-      connStr.includes("sslmode=disable")
-    ) {
-      useSsl = false;
-      console.log("[Postgres] Connection is identified as internal/local private network. Disabling SSL.");
-    } else {
-      console.log(`[Postgres] Initializing Pool. SSL enabled: ${useSsl}`);
-    }
 
-    pool = new Pool({
-      connectionString: connStr,
-      ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+function translatePostgresToSqlite(sql: string): string {
+  let s = sql;
+  
+  // Replace placeholders $1, $2, ... with ?
+  s = s.replace(/\$[0-9]+/g, '?');
+  
+  // Replace SERIAL with INTEGER PRIMARY KEY AUTOINCREMENT
+  s = s.replace(/\bSERIAL\b/gi, 'INTEGER PRIMARY KEY AUTOINCREMENT');
+  
+  // Handle ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...
+  // Remove "IF NOT EXISTS" from ADD COLUMN because SQLite ADD COLUMN doesn't support it
+  s = s.replace(/\bADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b/gi, 'ADD COLUMN');
+  
+  // Replace PostgreSQL date/time functions
+  s = s.replace(/NOW\(\)\s*-\s*INTERVAL\s*'24\s+hours'/gi, "datetime('now', '-24 hours')");
+  s = s.replace(/NOW\(\)\s*-\s*INTERVAL\s*'1\s+day'/gi, "datetime('now', '-1 day')");
+  s = s.replace(/NOW\(\)/gi, "datetime('now')");
+  
+  // Replace ILIKE with LIKE
+  s = s.replace(/\bILIKE\b/gi, 'LIKE');
+  
+  return s;
+}
+
+class SqlitePool {
+  private db: any;
+
+  constructor() {
+    console.log("[SqlitePool] Initializing local persistent SQLite database backup...");
+    this.db = new sqlite3.Database('database.sqlite');
+  }
+
+  async query(sql: string, params: any[] = []): Promise<{ rows: any[], rowCount: number }> {
+    const translatedSql = translatePostgresToSqlite(sql);
+    
+    // Convert boolean params to 1/0 for SQLite
+    const mappedParams = params.map(p => {
+      if (typeof p === 'boolean') return p ? 1 : 0;
+      return p;
     });
+
+    return new Promise((resolve, reject) => {
+      // Determine if it's a query that returns rows
+      const isQueryReturningRows = /^\s*SELECT\b/i.test(translatedSql) || /\bRETURNING\b/i.test(translatedSql);
+      
+      if (isQueryReturningRows) {
+        this.db.all(translatedSql, mappedParams, (err: any, rows: any[]) => {
+          if (err) {
+            console.error(`[SqlitePool SELECT Error] SQL: ${translatedSql}, Error:`, err.message);
+            reject(err);
+          } else {
+            // Map 1/0 values of is_verified etc to booleans if expected by JS
+            const mappedRows = (rows || []).map(row => {
+              const r = { ...row };
+              for (const key in r) {
+                if (key.startsWith('is_') && (r[key] === 1 || r[key] === 0)) {
+                  r[key] = r[key] === 1;
+                }
+                if (key === 'verified' && (r[key] === 1 || r[key] === 0)) {
+                  r[key] = r[key] === 1;
+                }
+              }
+              return r;
+            });
+            resolve({ rows: mappedRows, rowCount: mappedRows.length });
+          }
+        });
+      } else {
+        if (params.length === 0 && translatedSql.includes(';')) {
+          this.db.exec(translatedSql, (err: any) => {
+            if (err) {
+              // Ignore alter table errors for duplicate columns or safe statements
+              if (/duplicate column name|already exists/i.test(err.message)) {
+                resolve({ rows: [], rowCount: 0 });
+              } else {
+                console.error(`[SqlitePool EXEC Error] Error:`, err.message);
+                reject(err);
+              }
+            } else {
+              resolve({ rows: [], rowCount: 0 });
+            }
+          });
+        } else {
+          this.db.run(translatedSql, mappedParams, function(this: any, err: any) {
+            if (err) {
+              // Ignore alter table errors for duplicate columns or safe statements
+              if (/duplicate column name|already exists/i.test(err.message)) {
+                resolve({ rows: [], rowCount: 0 });
+              } else {
+                console.error(`[SqlitePool RUN Error] SQL: ${translatedSql}, Error:`, err.message);
+                reject(err);
+              }
+            } else {
+              resolve({ rows: [], rowCount: this.changes || 0 });
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // Mimic client connection
+  async connect() {
+    return {
+      query: (sql: string, params: any[] = []) => this.query(sql, params),
+      release: () => {}
+    };
+  }
+}
+
+let pool: any = null;
+function getDb() {
+  if (!pool) {
+    if (process.env.DATABASE_URL) {
+      const connStr = process.env.DATABASE_URL;
+      let useSsl = false;
+      
+      // Default to using SSL in production (e.g. external connections)
+      if (process.env.NODE_ENV === "production" || !!process.env.FIREBASE_SERVICE_ACCOUNT) {
+        useSsl = true;
+      }
+      
+      // Explicitly disable SSL for known internal/private hostnames or local connections
+      if (
+        connStr.includes("railway.internal") || 
+        connStr.includes(".internal") ||
+        connStr.includes("10.132.") ||  // Railway private IPv4 space
+        connStr.includes("10.0.") ||    // Common private IPv4
+        connStr.includes("192.168.") || // Common private IPv4
+        connStr.includes("172.16.") ||  // Common private IPv4
+        connStr.includes("[fd12:") ||   // Railway private IPv6 address
+        connStr.includes("localhost") ||
+        connStr.includes("127.0.0.1") ||
+        connStr.includes("sslmode=disable")
+      ) {
+        useSsl = false;
+        console.log("[Postgres] Connection is identified as internal/local private network. Disabling SSL.");
+      } else {
+        console.log(`[Postgres] Initializing Pool. SSL enabled: ${useSsl}`);
+      }
+
+      pool = new Pool({
+        connectionString: connStr,
+        ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+      });
+    } else {
+      console.log("[Postgres/Fallback] No DATABASE_URL env var found. Initializing persistent SQLite fallback Pool.");
+      pool = new SqlitePool();
+    }
   }
   return pool;
 }
 
-async function seedEssentialPostgresData(db: pg.Pool) {
+async function seedEssentialPostgresData(db: any) {
   // 1. Packages
   const packagesCheck = await db.query("SELECT * FROM sql_packages LIMIT 1");
   if (packagesCheck.rows.length === 0) {
@@ -1761,7 +1878,7 @@ async function startServer() {
 
       const hash = await bcrypt.hash(password, 10);
       const id = "usr_" + crypto.randomBytes(8).toString("hex");
-      const role = email === "admin@prop.com" ? "admin" : "trader";
+      const role = (email === "admin@prop.com" || email === "cloudcomun@gmail.com" || email === "websiteanglia@gmail.com") ? "admin" : "trader";
 
       const newUser = {
         id,
@@ -2007,6 +2124,91 @@ async function startServer() {
     } catch (e: any) {
       console.error("Auth Me Error:", e);
       res.status(500).json({ error: e.message || "Internal error during fetch profile" });
+    }
+  });
+
+  app.get("/api/admin/users", authenticate, async (req: any, res: any) => {
+    try {
+      const isAdminEmail = req.user.email === 'cloudcomun@gmail.com' || req.user.email === 'admin@prop.com' || req.user.email === 'websiteanglia@gmail.com';
+      const isStaffRole = req.user.role === 'admin' || req.user.role === 'moderator';
+      
+      if (!isAdminEmail && !isStaffRole) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+
+      const db = getDb();
+      if (!db) return res.status(500).json({ error: "Database not ready" });
+
+      const result = await db.query("SELECT * FROM sql_users ORDER BY created_at DESC");
+      
+      const users = await Promise.all(result.rows.map(async (user: any) => {
+        const accountsResult = await db.query("SELECT * FROM sql_trading_accounts WHERE user_id = $1", [user.id]);
+        const tradingAccounts = accountsResult.rows.map(acc => ({
+          id: acc.id,
+          userId: acc.user_id,
+          platform: acc.platform,
+          accountNumber: acc.account_number,
+          broker: acc.broker,
+          server: acc.server,
+          status: acc.status,
+          leverage: acc.leverage,
+          type: acc.type,
+          competitionId: acc.competition_id,
+          createdAt: Number(acc.created_at),
+          balance: Number(acc.balance),
+          equity: Number(acc.equity),
+          initialBalance: Number(acc.initial_balance),
+          initialFee: Number(acc.initial_fee),
+          feeRefunded: acc.fee_refunded,
+          openTrades: acc.open_trades ? JSON.parse(acc.open_trades) : [],
+          pendingOrders: acc.pending_orders ? JSON.parse(acc.pending_orders) : [],
+          history: acc.history ? JSON.parse(acc.history) : [],
+          rules: acc.rules ? JSON.parse(acc.rules) : {},
+          payoutMilestones: acc.payout_milestones ? JSON.parse(acc.payout_milestones) : [],
+          mt5Sync: acc.mt5_sync ? JSON.parse(acc.mt5_sync) : null,
+          certificates: acc.certificates ? JSON.parse(acc.certificates) : [],
+          consistencyWarningsCount: acc.consistency_warnings_count,
+          scalpWarningsCount: acc.scalp_warnings_count
+        }));
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          balance: Number(user.balance),
+          equity: Number(user.equity),
+          status: user.status,
+          leverage: user.leverage,
+          pnl: Number(user.pnl),
+          pnlPercentage: Number(user.pnl_percentage),
+          isVerified: user.is_verified,
+          verificationStatus: user.verification_status,
+          phone: user.phone,
+          avatar: user.avatar,
+          realName: user.real_name,
+          lastName: user.last_name,
+          fiscalCode: user.fiscal_code,
+          birthDate: user.birth_date,
+          country: user.country,
+          allowProfileEdit: user.allow_profile_edit,
+          createdAt: Number(user.created_at),
+          winRate: Number(user.win_rate),
+          totalTrades: Number(user.total_trades),
+          profitFactor: Number(user.profit_factor),
+          maxDrawdown: Number(user.max_drawdown),
+          referralCode: user.referral_code,
+          referredBy: user.referred_by,
+          referrals: user.referrals ? JSON.parse(user.referrals) : [],
+          linkedPaymentMethod: user.linked_payment_method ? JSON.parse(user.linked_payment_method) : null,
+          tradingAccounts
+        };
+      }));
+
+      res.json(users);
+    } catch (e: any) {
+      console.error("Admin Fetch Users Error:", e);
+      res.status(500).json({ error: e.message || "Internal error during admin fetch users" });
     }
   });
 
@@ -2529,7 +2731,7 @@ async function startServer() {
     // Security: Only owner or staff
     if (user_id !== req.user.uid) {
        let isStaff = false;
-       const isSuperAdmin = req.user.email === 'websiteanglia@gmail.com' || req.user.email === 'admin@prop.com';
+       const isSuperAdmin = req.user.email === 'websiteanglia@gmail.com' || req.user.email === 'admin@prop.com' || req.user.email === 'cloudcomun@gmail.com';
        if (isSuperAdmin) {
          isStaff = true;
        } else {
@@ -2564,6 +2766,7 @@ async function startServer() {
       const isSuperAdmin = 
         req.user.email === 'websiteanglia@gmail.com' || 
         req.user.email === 'admin@prop.com' ||
+        req.user.email === 'cloudcomun@gmail.com' ||
         req.user.email === 'florinelvictorlupascu@gmail.com' ||
         req.user.uid === '92Lluf6ztBasw1COuRRXHteVJfr1';
       

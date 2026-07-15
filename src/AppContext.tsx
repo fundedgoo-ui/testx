@@ -678,6 +678,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (isStaff) {
           const sysLogs = await fetchWithAuth("/api/sys-logs").catch(() => []);
           setAuditLogs(sysLogs);
+          const allUsers = await fetchWithAuth("/api/admin/users").catch(() => []);
+          setUsers(allUsers);
         }
 
         // Fetch and Sync User profile (including current trading accounts)
