@@ -4874,6 +4874,31 @@ export default function WebTerminal() {
     setCloseLots("");
   };
 
+  const isLoadingStandalone = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('loading') === 'true';
+
+  if (isLoadingStandalone) {
+    return (
+      <div className="w-screen h-screen bg-[#020617] text-slate-200 flex flex-col items-center justify-center space-y-6 font-sans select-none z-[1000] relative">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+        <div className="relative flex flex-col items-center p-8 rounded-[24px] border border-azure/20 bg-slate-950/80 shadow-[0_0_60px_rgba(0,183,255,0.15)] max-w-sm w-full mx-4 backdrop-blur-md">
+          {/* Spinning terminal icon */}
+          <div className="w-16 h-16 bg-azure/10 rounded-2xl flex items-center justify-center text-azure glow-azure border border-azure/20 mb-6">
+            <RefreshCw size={32} className="animate-spin text-azure" />
+          </div>
+          
+          <h2 className="text-lg font-bold font-mono tracking-wider uppercase text-white mb-2">PROVISIONING SECURE NODE...</h2>
+          <p className="text-slate-400 text-xs font-mono text-center max-w-xs mb-6">
+            Generating custom GOO trading platform instance and establishing ultra-low latency bridge.
+          </p>
+          
+          <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5 p-[1px]">
+            <div className="bg-gradient-to-r from-azure to-blue-500 h-full rounded-full animate-pulse shadow-[0_0_8px_#00f2ff] w-4/5" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="fixed inset-0 bg-[#020617] flex flex-col z-[500] animate-in fade-in duration-300">

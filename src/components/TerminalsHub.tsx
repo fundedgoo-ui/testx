@@ -28,18 +28,18 @@ export default function TerminalsHub() {
   }, [isProvisioning]);
 
   const handleLaunch = () => {
-    setIsProvisioning('GOO');
-    
     // Check if secure GOO account already exists
     const existing = user?.tradingAccounts?.find(a => a.platform === 'GOO');
     
     if (existing) {
-      setTimeout(() => {
-        setIsProvisioning(null);
-        setActiveAccountId(existing.id);
-        setActiveView('web-terminal');
-      }, 1500);
+      // Set active account ID first
+      setActiveAccountId(existing.id);
+      // Launch immediately so window.open is synchronous and bypasses popup blocker!
+      setActiveView('web-terminal');
     } else {
+      // Show loading/linking simulation locally
+      setIsProvisioning('GOO');
+      
       const demoPkg: ShopPackage = {
         id: 'demo-package',
         name: 'Free Demo Access',
@@ -50,19 +50,32 @@ export default function TerminalsHub() {
         dailyDrawdown: 5,
         totalDrawdown: 10,
       };
-      
-      setTimeout(() => {
-        generateTradingAccount(demoPkg, 'GOO', 'evaluation').then((newAcc) => {
-          setIsProvisioning(null);
-          if (newAcc) {
-            setActiveAccountId(newAcc.id);
+
+      // Open the window synchronously first with a loading indicator to bypass popup blocker!
+      let win: Window | null = null;
+      try {
+        win = window.open(`/?view=web-terminal&loading=true`, "_blank");
+      } catch (e) {
+        console.warn("Could not open window synchronously, will fall back to inline view", e);
+      }
+
+      generateTradingAccount(demoPkg, 'GOO', 'evaluation').then((newAcc) => {
+        setIsProvisioning(null);
+        if (newAcc) {
+          setActiveAccountId(newAcc.id);
+          if (win) {
+            win.location.href = `/?view=web-terminal&accountId=${newAcc.id}`;
+          } else {
+            setActiveView('web-terminal');
           }
-          setActiveView('web-terminal');
-        }).catch((err) => {
-          console.error("Failed to generate demo trading account:", err);
-          setIsProvisioning(null);
-        });
-      }, 2000);
+        } else {
+          if (win) win.close();
+        }
+      }).catch((err) => {
+        console.error("Failed to generate demo trading account:", err);
+        setIsProvisioning(null);
+        if (win) win.close();
+      });
     }
   };
 

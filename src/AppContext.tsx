@@ -1658,9 +1658,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (e) {}
       if (!isStandalone) {
         const accountParam = activeAccountId ? `&accountId=${activeAccountId}` : '';
-        const win = window.open(`/?view=web-terminal${accountParam}`, "_blank");
-        if (!win || win.closed || typeof win.closed === 'undefined') {
-          // Popup was blocked or iframe context prevented opening new tab. Fallback to rendering inline!
+        try {
+          const win = window.open(`/?view=web-terminal${accountParam}`, "_blank");
+          if (!win || win.closed || typeof win.closed === 'undefined') {
+            // Popup was blocked or iframe context prevented opening new tab. Fallback to rendering inline!
+            setActiveView(view);
+            return;
+          }
+        } catch (openErr) {
+          console.warn("window.open blocked or failed:", openErr);
           setActiveView(view);
           return;
         }
