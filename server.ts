@@ -183,10 +183,9 @@ async function initFirebase() {
   }
 
   // Database ID from config or environment
-  // If we are on Railway / production (FIREBASE_SERVICE_ACCOUNT is set), we should default to (default) unless VITE_FIREBASE_DATABASE_ID is explicitly set
   const databaseId = 
     process.env.VITE_FIREBASE_DATABASE_ID || 
-    (process.env.FIREBASE_SERVICE_ACCOUNT ? undefined : firebaseConfig.firestoreDatabaseId) || 
+    firebaseConfig.firestoreDatabaseId || 
     undefined;
 
   dbAdmin = getAdminFirestore(firebaseAdminApp, databaseId);
@@ -1003,10 +1002,36 @@ const { Pool } = pg;
 let pool: pg.Pool | null = null;
 function getDb() {
   if (!pool && process.env.DATABASE_URL) {
-    const isProduction = process.env.NODE_ENV === "production" || !!process.env.FIREBASE_SERVICE_ACCOUNT;
+    const connStr = process.env.DATABASE_URL;
+    let useSsl = false;
+    
+    // Default to using SSL in production (e.g. external connections)
+    if (process.env.NODE_ENV === "production" || !!process.env.FIREBASE_SERVICE_ACCOUNT) {
+      useSsl = true;
+    }
+    
+    // Explicitly disable SSL for known internal/private hostnames or local connections
+    if (
+      connStr.includes("railway.internal") || 
+      connStr.includes(".internal") ||
+      connStr.includes("10.132.") ||  // Railway private IPv4 space
+      connStr.includes("10.0.") ||    // Common private IPv4
+      connStr.includes("192.168.") || // Common private IPv4
+      connStr.includes("172.16.") ||  // Common private IPv4
+      connStr.includes("[fd12:") ||   // Railway private IPv6 address
+      connStr.includes("localhost") ||
+      connStr.includes("127.0.0.1") ||
+      connStr.includes("sslmode=disable")
+    ) {
+      useSsl = false;
+      console.log("[Postgres] Connection is identified as internal/local private network. Disabling SSL.");
+    } else {
+      console.log(`[Postgres] Initializing Pool. SSL enabled: ${useSsl}`);
+    }
+
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: isProduction ? { rejectUnauthorized: false } : undefined,
+      connectionString: connStr,
+      ssl: useSsl ? { rejectUnauthorized: false } : undefined,
     });
   }
   return pool;
@@ -3279,8 +3304,41 @@ Format and return your analysis strictly as a JSON object with the following str
     }
   });
 
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  app.get("/api/health", async (req, res) => {
+    const hasDatabaseUrl = !!process.env.DATABASE_URL;
+    let postgresStatus = "disconnected";
+    let postgresError = null;
+
+    if (hasDatabaseUrl) {
+      try {
+        const db = getDb();
+        if (db) {
+          await db.query("SELECT 1");
+          postgresStatus = "connected";
+        } else {
+          postgresStatus = "no_pool";
+        }
+      } catch (e: any) {
+        postgresStatus = "failed";
+        postgresError = e.message || String(e);
+      }
+    } else {
+      postgresStatus = "missing_database_url_env";
+    }
+
+    const firestoreStatus = dbAdmin ? "connected" : "disconnected";
+
+    res.json({
+      status: "ok",
+      postgres: {
+        status: postgresStatus,
+        hasUrl: hasDatabaseUrl,
+        error: postgresError
+      },
+      firestore: {
+        status: firestoreStatus
+      }
+    });
   });
 
   // Verification Routes
